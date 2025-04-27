@@ -5,10 +5,6 @@ branding:
   icon: 'cloud'
   color: 'pink'
 inputs:
-  dry_run:
-    description: "Dry run deployment"
-    required: false
-    type: boolean
   aws_region:
     description: "AWS Region"
     required: true
@@ -36,9 +32,6 @@ inputs:
     description: "Template file path"
     required: true
     type: string
-  # working_directory:
-  #   description: 'Directory containing Terraform configuration'
-  #   required: true
 runs:
   using: "composite"
   steps:
@@ -52,7 +45,8 @@ runs:
         aws-region: ${{ inputs.aws_region }}
 
     - name: Deploy stack using SAM
-      if: ${{ inputs.dry_run == false }}
+      shell: bash
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       working-directory: ${{ github.workspace }}
       run: |
         sam deploy \
@@ -67,7 +61,8 @@ runs:
           --tags stack_name=${{ inputs.stack_name }} sam=true
 
     - name: Dry-deploy
-      if: ${{ inputs.dry_run == true }}
+      shell: bash
+      if: github.event_name == 'pull_request'
       working-directory: ${{ github.workspace }}
       run: |
         sam deploy \
@@ -81,7 +76,8 @@ runs:
           --tags stack_name=${{ inputs.stack_name }} sam=true
 
     - name: Print deployment outputs
-      if: ${{ inputs.dry_run == false }}
+      shell: bash
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       run: |
         aws cloudformation describe-stacks \
           --stack-name ${{ inputs.stack_name }} \
