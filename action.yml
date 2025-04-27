@@ -1,0 +1,88 @@
+name: 'delivops-github-action-sam-deploy'
+description: 'Sam deploy'
+author: 'delivops'
+branding:
+  icon: 'cloud'
+  color: 'pink'
+inputs:
+  dry_run:
+    description: "Dry run deployment"
+    required: false
+    type: boolean
+  aws_region:
+    description: "AWS Region"
+    required: true
+    type: string
+  aws_account_id:
+    description: "AWS Account ID"
+    required: true
+    type: string    
+  aws_role:
+    description: 'aws role name'
+    required: true  
+  dockerfile_path:
+    description: "Path to Dockerfile"
+    required: true
+    type: string
+  sam_config_path:
+    description: "SAM config file path"
+    required: true
+    type: string
+  stack_name:
+    description: "Stack Name"
+    required: true
+    type: string
+  sam_template_path:
+    description: "Template file path"
+    required: true
+    type: string
+  # working_directory:
+  #   description: 'Directory containing Terraform configuration'
+  #   required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: "arn:aws:iam::${{ inputs.aws_account_id }}:role/${{ inputs.aws_role}}"
+        aws-region: ${{ inputs.aws_region }}
+
+    - name: Deploy stack using SAM
+      if: ${{ inputs.dry_run == false }}
+      working-directory: ${{ github.workspace }}
+      run: |
+        sam deploy \
+          --config-file "${{ github.workspace }}/${{ inputs.sam_config_path }}" \
+          --stack-name ${{ inputs.stack_name }} \
+          --config-env default \
+          --template-file ${{ inputs.sam_template_path }} \
+          --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+          --no-confirm-changeset \
+          --no-fail-on-empty-changeset \
+          --region ${{ inputs.aws_region }} \
+          --tags stack_name=${{ inputs.stack_name }} sam=true
+
+    - name: Dry-deploy
+      if: ${{ inputs.dry_run == true }}
+      working-directory: ${{ github.workspace }}
+      run: |
+        sam deploy \
+          --config-file "${{ github.workspace }}/${{ inputs.sam_config_path }}" \
+          --stack-name ${{ inputs.stack_name }} \
+          --config-env default \
+          --template-file ${{ inputs.sam_template_path }} \
+          --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
+          --no-execute-changeset \
+          --region ${{ inputs.aws_region }} \
+          --tags stack_name=${{ inputs.stack_name }} sam=true
+
+    - name: Print deployment outputs
+      if: ${{ inputs.dry_run == false }}
+      run: |
+        aws cloudformation describe-stacks \
+          --stack-name ${{ inputs.stack_name }} \
+          --region ${{ inputs.aws_region }}
