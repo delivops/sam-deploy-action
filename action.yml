@@ -61,13 +61,15 @@ runs:
           --no-fail-on-empty-changeset \
           --region ${{ inputs.aws_region }} \
           --tags stack_name=${{ inputs.stack_name }} sam=true
-    - name: Dry-deploy and capture changeset
+    - name: Dry-deploy and post to PR
       shell: bash
       if: github.event_name == 'pull_request'
       working-directory: ${{ github.workspace }}
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
       run: |
-        # Create the changeset and save the ID
-        CHANGESET_ID=$(sam deploy \
+        # Run SAM deploy with --no-execute-changeset to get the plan
+        CHANGESET_OUTPUT=$(sam deploy \
           --config-file "${{ github.workspace }}/${{ inputs.sam_config_path }}" \
           --stack-name ${{ inputs.stack_name }} \
           --config-env default \
@@ -75,50 +77,13 @@ runs:
           --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
           --no-execute-changeset \
           --region ${{ inputs.aws_region }} \
-          --tags stack_name=${{ inputs.stack_name }} sam=true \
-          | grep -o 'arn:aws:cloudformation:[^:]*:[^:]*:changeSet/[a-zA-Z0-9-]*/[a-zA-Z0-9-]*' || echo "")
+          --tags stack_name=${{ inputs.stack_name }} sam=true 2>&1)
         
-        if [ -n "$CHANGESET_ID" ]; then
-          echo "CHANGESET_ID=$CHANGESET_ID" >> $GITHUB_ENV
-          # Describe the changeset to get changes
-          aws cloudformation describe-change-set \
-            --change-set-name "$CHANGESET_ID" \
-            --region ${{ inputs.aws_region }} > changeset_details.json
-            
-          # Format the changeset details for the PR comment
-          echo "## SAM Deployment Plan" > changeset_summary.md
-          echo "The following changes will be applied:" >> changeset_summary.md
-          echo '```' >> changeset_summary.md
-          
-          jq -r '.Changes[] | "Action: " + .ResourceChange.Action + 
-                "\nLogical ID: " + .ResourceChange.LogicalResourceId + 
-                "\nResource Type: " + .ResourceChange.ResourceType + 
-                if .ResourceChange.Replacement == "True" then "\nReplacement: Required" else "" end +
-                "\n---"' changeset_details.json >> changeset_summary.md
-          
-          echo '```' >> changeset_summary.md
-          
-          # Save the summary to be used in the PR comment
-          cat changeset_summary.md > $GITHUB_WORKSPACE/changeset_summary.md
-        else
-          echo "## SAM Deployment Plan" > $GITHUB_WORKSPACE/changeset_summary.md
-          echo "No changes detected in this deployment." >> $GITHUB_WORKSPACE/changeset_summary.md
-        fi
-    - name: Comment on PR with changeset details
-      if: github.event_name == 'pull_request'
-      uses: actions/github-script@v6
-      with:
-        github-token: ${{ inputs.github_token }}
-        script: |
-          const fs = require('fs');
-          const changesetSummary = fs.readFileSync('changeset_summary.md', 'utf8');
-          
-          github.rest.issues.createComment({
-            issue_number: context.issue.number,
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            body: changesetSummary
-          });
+        # Post the output to the PR
+        PR_COMMENT="## SAM Deployment Plan\n\`\`\`\n${CHANGESET_OUTPUT}\n\`\`\`"
+        
+        # Post comment to PR using GitHub CLI
+        echo -e "$PR_COMMENT" | gh pr comment ${{ github.event.pull_request.number }} --body-file -
     - name: Print deployment outputs
       shell: bash
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
