@@ -1,7 +1,7 @@
 
 ![image info](logo-small.jpeg)
 
-# github-actions-deploy-to-sam
+# sam-deploy-action
 
 This repository provides a reusable GitHub Action for deploying applications to AWS using the AWS SAM (Serverless Application Model) framework. It automates the deployment process, allowing you to deploy ECS services using SAM with customizable options for dry-run and full deployment.
 
@@ -42,25 +42,18 @@ This GitHub Action follows these steps to deploy ECS services using AWS SAM:
 ## Example Usage
 
 ```yaml
-name: Deploy To SAM
+name: SAM Deploy
 
 on:
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: "Dry run deployment"
-        required: false
-        type: boolean
 
 jobs:
   deploy:
-    uses: ./.github/workflows/deploy-to-sam.yml
+    uses: delivops/sam-deploy-action@main
     with:
-      dry_run: ${{ inputs.dry_run }}
       aws_region: us-east-1
       aws_account_id: ${{secrets.AWS_ACCOUNT_ID}}
       aws_role: github-services
-      dockerfile_path: services/app2/Dockerfile
       sam_config_path: globals/samconfig.yaml
       stack_name: app244
       sam_template_path: services/app2/simple.yaml

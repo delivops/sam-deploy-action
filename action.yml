@@ -1,4 +1,4 @@
-name: 'delivops-github-action-sam-deploy'
+name: 'delivops-sam-deploy-action'
 description: 'Sam deploy'
 author: 'delivops'
 branding:
@@ -16,10 +16,6 @@ inputs:
   aws_role:
     description: 'aws role name'
     required: true  
-  dockerfile_path:
-    description: "Path to Dockerfile"
-    required: true
-    type: string
   sam_config_path:
     description: "SAM config file path"
     required: true
@@ -48,7 +44,7 @@ runs:
         aws-region: ${{ inputs.aws_region }}
     - name: Deploy stack using SAM
       shell: bash
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.event_name == 'push'
       working-directory: ${{ github.workspace }}
       run: |
         sam deploy \
@@ -86,7 +82,7 @@ runs:
         echo -e "$PR_COMMENT" | gh pr comment ${{ github.event.pull_request.number }} --body-file -
     - name: Print deployment outputs
       shell: bash
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+      if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.event_name == 'push'
       run: |
         aws cloudformation describe-stacks \
           --stack-name ${{ inputs.stack_name }} \
